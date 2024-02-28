@@ -1,68 +1,56 @@
 import axios from 'axios';
-import { Character } from "../characters/character";
+
+// Assuming these types are defined somewhere in your project
 import { Result } from "../types/Result";
-import { wAIfu } from "../types/Waifu";
-import {
-    LLM_GEN_ERRORS,
-    ILargeLanguageModel,
-    LlmGenerationSettings,
-} from "./llm_interface";
-import { IO } from "../io/io";
-import { getCurrentCharacter } from "../characters/characters";
+import { LLM_GEN_ERRORS } from "./llm_interface";
 
-type GPTChatEntry = {
-    role: "function" | "system" | "user" | "assistant";
-    content: string;
-};
+class OpenAI {
+  private baseUrl: string;
+  private apiKey: string;
 
-const GENERATION_TIMEOUT_MS = 10_000 as const;
+  constructor(baseUrl: string, apiKey: string) {
+    this.baseUrl = baseUrl;
+    this.apiKey = apiKey;
+  }
 
-export class LargeLanguageModelOpenAI implements ILargeLanguageModel {
-    #apiEndpoint: string;
-    #apiKey: string;
+  async chatCompletionsCreate(model: string, messages: any[], temperature: number): Promise<Result<string, LLM_GEN_ERRORS>> {
+    try {
+      const response = await axios.post(`${this.baseUrl}/completions`, {
+        model: model,
+        messages: messages,
+        temperature: temperature,
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          // Assuming API key is not needed for local, but structured to include it if provided
+          ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
+        },
+      });
 
-    constructor() {
-        // Switch between OpenAI and local endpoint here
-        this.#apiEndpoint = process.env.USE_LOCAL_LLM ? 'http://localhost:1234' : 'https://api.openai.com';
-        this.#apiKey = wAIfu.state!.auth.openai.token;
+      // Assuming the structure of the response is similar to OpenAI's and needs to be adapted if different
+      const result = response.data.choices[0].message;
+      return new Result(true, result, LLM_GEN_ERRORS.NONE);
+    } catch (error) {
+      console.error(error);
+      return new Result(false, "API request failed", LLM_GEN_ERRORS.UNDEFINED);
     }
-
-    async initialize(): Promise<void> {
-        IO.debug("Loaded LargeLanguageModelOpenAI.");
-        return;
-    }
-
-    async free(): Promise<void> {
-        return;
-    }
-
-    async generate(
-        prompt: string,
-        settings: LlmGenerationSettings
-    ): Promise<Result<string, LLM_GEN_ERRORS>> {
-        return new Promise(async (resolve) => {
-            const data = {
-                model: "text-davinci-003", // Adjust model as needed
-                prompt: prompt,
-                temperature: settings.temperature,
-                max_tokens: settings.max_output_length,
-                // Add other parameters as needed
-            };
-
-            axios.post(`${this.#apiEndpoint}/v1/completions`, data, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.#apiKey}`
-                },
-                timeout: GENERATION_TIMEOUT_MS
-            }).then(response => {
-                const result = response.data.choices[0].text.trim();
-                resolve(new Result(true, result, LLM_GEN_ERRORS.NONE));
-            }).catch(error => {
-                // Handle error (e.g., network error, invalid API key, etc.)
-                console.error(error);
-                resolve(new Result(false, "API request failed", LLM_GEN_ERRORS.UNDEFINED));
-            });
-        });
-    }
+  }
 }
+
+// Example usage
+const client = new OpenAI("http://localhost:1234/v1", "not-needed");
+
+async function getCompletion() {
+  const completion = await client.chatCompletionsCreate("local-model", [
+    { "role": "system", "content": "Always answer in rhymes." },
+    { "role": "user", "content": "Introduce yourself." }
+  ], 0.7);
+
+  if (completion.success) {
+    console.log(completion.data);
+  } else {
+    console.error("Failed to get completion:", completion.error);
+  }
+}
+
+getCompletion();
