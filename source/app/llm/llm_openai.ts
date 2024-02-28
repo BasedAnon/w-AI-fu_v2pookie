@@ -23,7 +23,7 @@ export class LargeLanguageModelOpenAI implements ILargeLanguageModel {
 
     constructor() {
         // Switch between OpenAI and local endpoint here
-        this.#apiEndpoint = process.env.USE_LOCAL_LLM ? 'http://localhost:5000' : 'https://api.openai.com';
+        this.#apiEndpoint = process.env.USE_LOCAL_LLM ? 'http://localhost:1234' : 'https://api.openai.com';
         this.#apiKey = wAIfu.state!.auth.openai.token;
     }
 
